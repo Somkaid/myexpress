@@ -28,7 +28,7 @@ function handleEvent(event) {
 
   return client.replyMessage(event.replyToken, {
     type: 'text',
-    text: `คุณพิมพ์ว่า: ${event.message.text}`
+    text: `ไอ้คุณมึงได้พิมพ์ว่า: ${event.message.text}`
   });
 }
 
