@@ -1,3 +1,7 @@
+https://somkiad.csbootstrap.com/Webhook
+
+
+## index
 // index.js
 require('dotenv').config();
 const express = require('express');
@@ -8,7 +12,9 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const app = express();
 const supabase = createClient(
   process.env.SUPABASE_URL,
+  //process.env.SUPABASE_KEY
   process.env.SUPABASE_SERVICE_ROLE_KEY
+
 );
 
 // Gemini API Configuration
@@ -32,12 +38,11 @@ app.post('/webhook', (req, res) => {
     .then(result => res.json(result));
 });
 
-// ---- ฟังก์ชันประมวลผลรูปภาพ ----
 async function handleImageMessage(event) {
   const messageId = event.message.id;
 
   try {
-    // 1. ดึงไฟล์จาก LINE
+    // ดึงไฟล์จาก LINE
     const stream = await client.getMessageContent(messageId);
 
     // แปลง stream → buffer
@@ -47,13 +52,13 @@ async function handleImageMessage(event) {
     }
     const buffer = Buffer.concat(chunks);
 
-    // 2. อัพโหลดเข้า Supabase Storage
+    // อัพโหลดเข้า Supabase Storage
     const fileName = `line_images/${messageId}.jpg`;
     const { data, error } = await supabase.storage
-      .from("uploads") // bucket name
+      .from("uploads") // ชื่อ bucket
       .upload(fileName, buffer, {
         contentType: "image/jpeg",
-        upsert: true,
+        upsert: true, // ถ้ามีไฟล์ชื่อซ้ำ จะเขียนทับ
       });
 
     if (error) {
@@ -66,40 +71,17 @@ async function handleImageMessage(event) {
 
     console.log("✅ Uploaded to Supabase:", data);
 
-    // 3. สร้าง Public URL สำหรับรูป
-    const { data: publicUrlData } = supabase
-      .storage
-      .from("uploads")
-      .getPublicUrl(fileName);
-
-    const imageUrl = publicUrlData.publicUrl;
-
-    // 4. ส่งรูปไปที่ Gemini ให้ช่วยจำแนกสัตว์
-    const prompt = "รูปนี้เป็นสัตว์อะไร? กรุณาตอบสั้นๆ เป็นภาษาไทย";
-    const result = await model.generateContent([
-      prompt,
-      { inlineData: { mimeType: "image/jpeg", data: buffer.toString("base64") } }
-    ]);
-
-    const response = await result.response;
-    const aiAnswer = response.text() || "ไม่สามารถจำแนกสัตว์ได้";
-
-    // 5. ตอบกลับ User ใน LINE
+    // ตอบกลับ User
     return client.replyMessage(event.replyToken, {
       type: "text",
-      text: `🐾 ผลการวิเคราะห์: ${aiAnswer}`,
+      text: "📷 ได้รับรูปแล้ว และอัปโหลดไป Supabase สำเร็จ!",
     });
-
   } catch (err) {
     console.error("❌ Error:", err);
-    return client.replyMessage(event.replyToken, {
-      type: "text",
-      text: "เกิดข้อผิดพลาดในการประมวลผลรูปภาพ",
-    });
   }
 }
 
-// ---- ฟังก์ชันประมวลผลข้อความ ----
+// Reply to message
 async function handleEvent(event) {
   if (event.type === "message" && event.message.type === "image") {
     return handleImageMessage(event);
